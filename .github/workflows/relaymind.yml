@@ -1,0 +1,53 @@
+name: RelayMind Studio
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        required: true
+      lang:
+        default: 'auto'
+      tg_token:
+        default: ''
+      tg_chat_id:
+        default: ''
+permissions:
+  contents: read
+  models: read
+concurrency:
+  group: relaymind-render
+  cancel-in-progress: true
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          curl -sL https://cdn.jsdelivr.net/gh/zopair/relaymind-core@main/requirements.txt -o requirements.txt
+          pip install -q -r requirements.txt
+      - name: Run Centralized CDN Engine
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOPIC: ${{ github.event.inputs.topic }}
+          LANG: ${{ github.event.inputs.lang }}
+          TG_TOKEN: ${{ github.event.inputs.tg_token }}
+          TG_CHAT_ID: ${{ github.event.inputs.tg_chat_id }}
+        run: |
+          mkdir -p engine output
+          curl -sL https://cdn.jsdelivr.net/gh/zopair/relaymind-core@main/runner.py -o runner.py
+          curl -sL https://cdn.jsdelivr.net/gh/zopair/relaymind-core@main/engine/__init__.py -o engine/__init__.py
+          curl -sL https://cdn.jsdelivr.net/gh/zopair/relaymind-core@main/engine/prompt_enhancer.py -o engine/prompt_enhancer.py
+          curl -sL https://cdn.jsdelivr.net/gh/zopair/relaymind-core@main/engine/media_factory.py -o engine/media_factory.py
+          curl -sL https://cdn.jsdelivr.net/gh/zopair/relaymind-core@main/engine/resolver.py -o engine/resolver.py
+          python runner.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: short-video-output
+          path: output/
